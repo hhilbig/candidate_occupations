@@ -1,49 +1,83 @@
-# MP Occupation Mapping to KLDB and ISCO
+# Matching reported candidate occupations to KldB/ISCO categories
 
-This repository contains tools for mapping non-standard occupation descriptions of German MPs to standardized occupation classification systems: first to KLDB (German Classification of Occupations) and subsequently to ISCO (International Standard Classification of Occupations).
+MP candidates in Germany self-report occupations in a non-standard format. The goal of this repo is to match these self-reported occupations to the German KldB 2010 classification and the ISCO-08 classification. I use semantic matching using the XLM-RoBERTa-large model, which results in good matches for about half of all unique party-candidate combinations.
 
-## Project Goal
+**Candidate population:** I use all candidates for the Bundestag (federal parliament) in all elections between 1980 and 2021. Elections prior to 1990 are limited to West Germany. I only use candidates for the SPD, CDU/CSU, FDP, Green, Left (previously PDS) and AfD parties. This data comes directly from the federal returning officer.
 
-The primary goal is to standardize diverse occupation descriptions into internationally recognized classification codes, enabling consistent analysis and comparison of political representatives' professional backgrounds.
+**Share candidates with matches:** I use an ad-hoc (based on trial and error) lower bound for match quality to ensure that matches are accurate (see file `src/check_and_save_results.R`). Out of a total of 11,395 unique candidate-party combinations, I obtain good matches for 5,971, about 52%.
+
+**Output data:**
+
+## Sample of non-exact matches
+
+Below is a sample of non-exact matches. The KldB and original reported occupations are already pre-processed, i.e. they are slightly different than in the input data.
+
+| Original occupation | Matched KldB title |
+|---------------------|-------------------|
+| teammanagerin digitalisierung | team und qualitätsmanagerin |
+| medienwissenschaftlerin | medien und filmwissenschaftlerin |
+| laborant | laborant analytik |
+| grundschullehrerin | grund und hauptschullehrerin |
+| prüfstellenleiter | leiter einer baustoffprüfstelle |
+| verwaltungsangestellte | verwaltungsangestellte r gehobener dienst |
+| kinderkrankenschwester | kinderkrankenschwester pfleger |
+| assistenzarzt | assistenzarzt ärztin |
+| reisebuerokaufmann | reisende r |
+| ingenieurökonomin | ingenieurökonomin bergbau |
+| bautechnikerin | bautechnikerin denkmalpflege |
+| innenarchitektin diplom | innenarchitektin |
+| elektromechaniker | elektro und radiomechaniker |
+| allgemeinarzt | allgemeinarzt ärztin |
+| fachkraft lagerwirtschaft | fachkraft kreislauf abfallwirtschaft |
+| betonbauer | beton und stahlbetonbauer |
+| schlossermeister | schlosser und schmiedemeister |
+| kraftfahrzeugmeister | kraftfahrzeug industriemeister |
+| medizinisch technische radiologieassistentin | medizinisch technische r fachassistentin |
+| medizinpädagoge | medizinpädagoge pädagogin |
+
+Some of these matches are likely not fully correct, but even incorrect matches should point towards "similar" occupations in the KldB list.
 
 ## Methodology
 
 ### Data Processing Pipeline
 
-1. **KLDB Data Preparation** (`src/prep_kldb_berufe_data.R`)
-   - Loads and preprocesses KLDB reference data from Excel, handling German gender notation patterns, text normalization, and domain information extraction.
+1. **KldB Data Preparation** (`src/prep_kldb_berufe_data.R`)
+   - Converts occupation titles like "Lehrer/in" to separate entries ("Lehrer", "Lehrerin")
+   - Standardizes text (removes punctuation, converts to lowercase, expands "Dipl." → "Diplom")
+   - Extracts domain information from parenthetical notes
 
 2. **MP Occupation Processing** (`src/prep_mp_occ_data.R`)
-   - Processes raw MP occupation data, handling multiple occupations per MP, expanding abbreviations, and identifying legislator-only occupations.
+   - Splits multiple occupations into separate columns (up to 4 per candidate)
+   - Expands abbreviations and normalizes inconsistent reporting patterns
+   - Tags legislator-specific roles (e.g., "Mitglied des Bundestages")
 
-3. **KLDB Matching** (`src/embed_match_kldb.py`)
-   - Performs semantic matching using XLM-RoBERTa-large model, with optional compound word splitting and similarity scoring.
+3. **Semantic Matching** (`src/embed_match_kldb.py`)
+   - Uses XLM-RoBERTa-large to create vector embeddings for occupations
+   - Optionally splits German compound words for better matching
+   - Matches occupations based on cosine similarity scores
 
-4. **Results Validation** (`src/check_results.R`)
-   - Reviews matching results and assesses match quality through similarity score analysis.
-
-## Technical Implementation
-
-The pipeline implements several key features:
-
-- German-specific text processing including gender notation patterns and compound word splitting
-- Advanced text normalization with abbreviation expansion and status indicator removal
-- Semantic matching using XLM-RoBERTa-large model with precomputed embeddings
-- Multi-occupation handling with confidence scoring for matches
+4. **Results Validation** (`src/check_and_save_results.R`)
+   - Applies 99.985% similarity threshold for quality control
+   - Maps KldB codes to ISCO-08 codes via official conversion tables
+   - Analyzes match coverage by election year and party
 
 ## Usage
 
-The pipeline processes the following files:
+**Input Files:**
 
-Input:
+- `input/Alphabetisches-Verzeichnis-Berufsbenennungen-Stand01012019.xlsx`: KldB reference list
+- `input/Umsteigeschluessel-KLDB2020-ISCO08.xlsx`: KldB to ISCO-08 mapping
+- `input/input_data.rds`: MP occupation data
+- `input/german/german_utf8.dic`: German dictionary (optional)
 
-- `input/Alphabetisches-Verzeichnis-Berufsbenennungen-Stand01012019.xlsx`: KLDB reference data
-- `input/input_data.rds`: Raw MP occupation data
-- `input/german/german_utf8.dic`: German dictionary for compound splitting (optional)
+**Outputs:**
 
-Output:
+- `output/unique_occupation_matches.csv`: Matches with similarity scores
+- Additional preprocessing files and cached embeddings
 
-- `output/preprocessed_kldb_for_embedding.csv`: Processed KLDB data
-- `output/unique_occupation_matches.csv`: Matching results with similarity scores
+**Execution Order:**
 
-All matches are stored with confidence scores for quality assessment.
+1. `src/prep_kldb_berufe_data.R`
+2. `src/prep_mp_occ_data.R`
+3. `src/embed_match_kldb.py`
+4. `src/check_and_save_results.R`
