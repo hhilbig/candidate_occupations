@@ -7,46 +7,6 @@ cf <- read_rds("input/input_data.rds") %>%
     mutate(occupation = str_squish(occupation)) %>%
     mutate(occupation = stringi::stri_trans_tolower(occupation))
 
-# Explore the occupation data first
-# Check column names
-print("Column names in the dataset:")
-print(colnames(cf))
-
-# Look at the most common occupations
-print("Top 300 most common occupations:")
-cf %>%
-    count(occupation, sort = TRUE) %>%
-    head(300) %>%
-    print()
-
-# Check for patterns of multiple occupations
-print("Examples of occupations with 'und':")
-cf %>%
-    filter(str_detect(occupation, "und")) %>%
-    select(occupation) %>%
-    head(300) %>%
-    print()
-
-print("Examples of occupations with commas:")
-cf %>%
-    filter(str_detect(occupation, ",")) %>%
-    select(occupation) %>%
-    head(300) %>%
-    print()
-
-# Check for legislator patterns
-print("Examples of potential legislator occupations:")
-legislator_keywords <- c("bundestag", "landtag", "mdb", "mdl", "abgeordnet")
-cf %>%
-    filter(if_any(occupation, ~ str_detect(., paste(legislator_keywords, collapse = "|")))) %>%
-    select(occupation) %>%
-    head(20) %>%
-    print()
-
-# Count NA and empty values
-print(paste("Number of NA occupation values:", sum(is.na(cf$occupation))))
-print(paste("Number of empty occupation values:", sum(cf$occupation == "", na.rm = TRUE)))
-
 # Steps:
 # 1. Separate multiple occupations (divided e.g., by commas or "und").
 #    Create new columns for each separated occupation (occ_1, occ_2, etc.). They can be NA for people with only one occupation.
@@ -171,6 +131,7 @@ legislator_patterns <- c(
     "abgeordnete",
     "bundestagsabgeordneter",
     "bundestagsabgeordnete",
+    "mdb",
 
     # Additional patterns found in the data
     "parlamentarisch staatssekretaer",
@@ -221,43 +182,40 @@ legislator_patterns <- c(
     "fraktionsvorsitzende"
 )
 
-# Create a vectorized function to check for legislator patterns
-is_only_legislator <- function(occupations) {
+# Create a vectorized function to check for legislator patterns and return status
+classify_legislator_status <- function(occupations) {
     sapply(occupations, function(x) {
         if (is.na(x)) {
-            return(FALSE)
+            return("not_legis")
         }
-        any(sapply(legislator_patterns, function(pattern) {
+
+        # Check if the occupation contains any legislator pattern
+        has_legislator_pattern <- any(sapply(legislator_patterns, function(pattern) {
             str_detect(x, fixed(pattern, ignore_case = TRUE))
         }))
+
+        # If it doesn't contain a legislator pattern, return "not_legis"
+        if (!has_legislator_pattern) {
+            return("not_legis")
+        }
+
+        # If it contains a comma, it might be "XXX, mdb" format
+        # In this case, it's "is_legis" but not "only_legis"
+        if (str_detect(x, ",")) {
+            return("is_legis")
+        }
+
+        # If it has legislator pattern and no comma, it's "only_legis"
+        return("only_legis")
     })
 }
 
 # Apply the function to mark legislators
 cf <- cf %>%
     mutate(
-        is_legislator = is_only_legislator(occupation),
-        is_only_legislator = is_legislator & !sapply(occupation, function(x) {
-            if (is.na(x)) {
-                return(FALSE)
-            }
-            is_leg <- any(sapply(legislator_patterns, function(pattern) {
-                str_detect(x, fixed(pattern, ignore_case = TRUE))
-            }))
-            if (!is_leg) {
-                return(FALSE)
-            }
-            # Check common non-legislator occupation patterns
-            non_leg_patterns <- c(
-                "rechtsanwalt", "anwalt", "jurist", "lehrer", "professor", "arzt", "architekt",
-                "ingenieur", "kaufmann", "unternehmer", "landwirt", "betriebswirt",
-                "historiker", "politologe", "soziologe", "informatiker"
-            )
-            contains_other <- any(sapply(non_leg_patterns, function(pattern) {
-                str_detect(x, fixed(pattern, ignore_case = TRUE))
-            }))
-            return(!contains_other)
-        })
+        legislator_status = classify_legislator_status(occupation),
+        is_legislator = legislator_status %in% c("is_legis", "only_legis"),
+        is_only_legislator = legislator_status == "only_legis"
     )
 
 # Function to extract the specific legislative position
@@ -359,9 +317,3 @@ write_rds(cf, "output/prepped_data.rds")
 
 # Also save as CSV with UTF-8 encoding to preserve umlauts
 write_csv(cf, "output/prepped_data.csv")
-
-cf %>%
-    filter(str_detect(occupation, "mitglied des bundestages")) %>%
-    pull(occupation)
-
-glimpse(cf)

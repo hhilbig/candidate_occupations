@@ -1,6 +1,3 @@
-# Required Python packages:
-# pip install pandas numpy sentence-transformers openpyxl torch
-
 import re
 import os
 import pandas as pd
@@ -15,6 +12,7 @@ cf = pd.read_csv("output/prepped_data.csv", encoding="utf-8")
 print(f"Loaded main dataset with {len(cf)} records.")
 
 # Check for umlauts in main dataset
+# This is just to see that we correctly read the data as UTF-8
 umlaut_chars = ["ä", "ö", "ü", "ß"]
 print("\nChecking umlauts in main dataset:")
 for char in umlaut_chars:
@@ -46,7 +44,7 @@ def safe_dissect(word, ahocs):
         )
         if not results:  # If no split was found
             return word
-        # Remove "__unknown__" from results and join with spaces
+        # Remove "__unknown__" from results and join with spaces (this is from the mask_unknown option)
         results = [r for r in results if r != "__unknown__"]
         if not results:  # If all parts were unknown
             return word
@@ -89,13 +87,11 @@ print(
 
 # Load preprocessed KLDB reference data (should contain columns "kldb_title" and "kldb_code5")
 kldb = pd.read_csv("output/preprocessed_kldb_for_embedding.csv", encoding="utf-8")
-print(f"\nLoaded {len(kldb)} preprocessed KLDB titles.")
 
 # Check for umlauts in KLDB dataset
 print("\nChecking umlauts in KLDB dataset:")
 for char in umlaut_chars:
     count = kldb["kldb_title"].astype(str).str.contains(char, na=False).sum()
-    print(f"Found {count} occurrences of '{char}'")
 
 # Store original KLDB titles
 kldb["original_kldb_title"] = kldb["kldb_title"]
@@ -123,12 +119,10 @@ else:
     print("Computed and saved KLDB embeddings.")
 
 # Encode unique occupations from the combined occupation fields
-print("Computing embeddings for unique occupations...")
 occ_list = unique_occupations.tolist()
 occ_embeddings = model.encode(occ_list, batch_size=32, show_progress_bar=True)
 
 # Compute cosine similarity between occupations and KLDB titles
-print("Computing similarity matrix...")
 cos_sim_matrix = util.cos_sim(occ_embeddings, kldb_embeddings)
 cos_sim_matrix = cos_sim_matrix.cpu().numpy()  # Convert to numpy array
 
@@ -157,4 +151,3 @@ matching_results = matching_results.sort_values(by="similarity_score", ascending
 matching_results.to_csv(
     "output/unique_occupation_matches.csv", index=False, encoding="utf-8"
 )
-print("Matching complete. Results saved to 'output/unique_occupation_matches.csv'")
