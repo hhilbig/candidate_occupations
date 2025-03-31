@@ -6,55 +6,111 @@ import os
 import pandas as pd
 import numpy as np
 from sentence_transformers import SentenceTransformer, util
+from german_compound_splitter import comp_split
 
 # --- 1. Load Main Data ---
 
 # Load the main dataset (prepped_data.csv)
-cf = pd.read_csv("input/prepped_data.csv", encoding="latin1")
+cf = pd.read_csv("output/prepped_data.csv", encoding="utf-8")
 print(f"Loaded main dataset with {len(cf)} records.")
 
-# Assume the main file has a column "occupation" (one occupation per row)
-# Normalize the occupation strings for matching
-cf["occupation_norm"] = cf["occupation"].astype(str).str.lower().str.strip()
+# Check for umlauts in main dataset
+umlaut_chars = ["ä", "ö", "ü", "ß"]
+print("\nChecking umlauts in main dataset:")
+for char in umlaut_chars:
+    count = sum(
+        cf[col].astype(str).str.contains(char, na=False).sum()
+        for col in ["occ_1", "occ_2", "occ_3", "occ_4"]
+    )
+    print(f"Found {count} occurrences of '{char}'")
 
-# --- 2. Load Preprocessed Occupation & KLDB Data ---
+# Optional: Split compound words
+SPLIT_COMPOUNDS = True  # Set this to True to enable compound word splitting
+ONLY_NOUNS = True  # Set this to True to only split nouns
+MASK_UNKNOWN = True  # Set this to True to mask unknown words
 
-# Load preprocessed occupations (this file should include only unique, cleaned occupation strings)
-preproc_occ = pd.read_csv(
-    "output/preprocessed_occupations_for_embedding.csv", encoding="latin1"
+if SPLIT_COMPOUNDS:
+    input_file = "input/german/german_utf8.dic"  # Using UTF-8 version of the dictionary
+    ahocs = comp_split.read_dictionary_from_file(input_file)
+
+
+def safe_dissect(word, ahocs):
+    """Safely dissect a compound word, returning the original word if no split is found."""
+    try:
+        results = comp_split.dissect(
+            word,
+            ahocs,
+            make_singular=True,
+            only_nouns=ONLY_NOUNS,
+            mask_unknown=MASK_UNKNOWN,
+        )
+        if not results:  # If no split was found
+            return word
+        # Remove "__unknown__" from results and join with spaces
+        results = [r for r in results if r != "__unknown__"]
+        if not results:  # If all parts were unknown
+            return word
+        return " ".join(results).lower()
+    except Exception as e:
+        print(f"Error processing word '{word}': {str(e)}")
+        return word
+
+
+# Combine all occupation fields (occ_1, occ_2, occ_3, occ_4) into a single list
+all_occupations = []
+original_occupations = []  # Store original titles
+for col in ["occ_1", "occ_2", "occ_3", "occ_4"]:
+    # Filter out missing values and add non-empty occupations to the list
+    occupations = cf[col].dropna().astype(str)
+    occupations = occupations[occupations != "nan"].str.strip()  # Don't lowercase yet
+
+    # Store original titles before any processing
+    original_occupations.extend(occupations.tolist())
+
+    # Now lowercase for processing
+    occupations = occupations.str.lower()
+
+    # Optionally split compound words
+    if SPLIT_COMPOUNDS:
+        occupations = occupations.apply(lambda x: safe_dissect(x, ahocs))
+
+    all_occupations.extend(occupations.tolist())
+
+# Create a mapping of processed to original titles
+title_mapping = dict(zip(all_occupations, original_occupations))
+
+# Extract unique occupations from all occupation fields
+unique_occupations = pd.Series(all_occupations).drop_duplicates().reset_index(drop=True)
+print(
+    f"Found {len(unique_occupations)} unique occupations across all occupation fields."
 )
-print(f"Loaded {len(preproc_occ)} preprocessed occupation records.")
 
-# Normalize the occupation field in the preprocessed file
-preproc_occ["occupation_clean"] = (
-    preproc_occ["occupation"].astype(str).str.lower().str.strip()
-)
-
-# Drop duplicates so that each occupation appears only once
-preproc_occ_unique = preproc_occ.drop_duplicates(subset=["occupation_clean"])
+# --- 2. Load Preprocessed KLDB Data ---
 
 # Load preprocessed KLDB reference data (should contain columns "kldb_title" and "kldb_code5")
-kldb = pd.read_csv("output/preprocessed_kldb_for_embedding.csv", encoding="latin1")
-print(f"Loaded {len(kldb)} preprocessed KLDB titles.")
+kldb = pd.read_csv("output/preprocessed_kldb_for_embedding.csv", encoding="utf-8")
+print(f"\nLoaded {len(kldb)} preprocessed KLDB titles.")
 
-# --- 3. Precompute Embeddings & Build Mapping ---
+# Check for umlauts in KLDB dataset
+print("\nChecking umlauts in KLDB dataset:")
+for char in umlaut_chars:
+    count = kldb["kldb_title"].astype(str).str.contains(char, na=False).sum()
+    print(f"Found {count} occurrences of '{char}'")
+
+# Store original KLDB titles
+kldb["original_kldb_title"] = kldb["kldb_title"]
+
+# Optionally split compound words in KLDB titles
+if SPLIT_COMPOUNDS:
+    kldb["kldb_title"] = kldb["kldb_title"].apply(lambda x: safe_dissect(x, ahocs))
+
+# --- 3. Compute Embeddings & Match Occupations to KLDB ---
 
 # Use a German-capable model; here we use xlm-roberta-large.
 model = SentenceTransformer("xlm-roberta-large")
 
 # File paths for embeddings
-occ_embeddings_file = "output/occ_embeddings.npy"
 kldb_embeddings_file = "output/kldb_embeddings.npy"
-
-# Compute or load occupation embeddings
-if os.path.exists(occ_embeddings_file):
-    occ_embeddings = np.load(occ_embeddings_file)
-    print("Loaded occupation embeddings from disk.")
-else:
-    occ_list = preproc_occ_unique["occupation_clean"].tolist()
-    occ_embeddings = model.encode(occ_list, batch_size=32, show_progress_bar=True)
-    np.save(occ_embeddings_file, occ_embeddings)
-    print("Computed and saved occupation embeddings.")
 
 # Compute or load KLDB embeddings
 if os.path.exists(kldb_embeddings_file):
@@ -66,85 +122,39 @@ else:
     np.save(kldb_embeddings_file, kldb_embeddings)
     print("Computed and saved KLDB embeddings.")
 
-# For each preprocessed occupation, compute cosine similarity to all KLDB titles
+# Encode unique occupations from the combined occupation fields
+print("Computing embeddings for unique occupations...")
+occ_list = unique_occupations.tolist()
+occ_embeddings = model.encode(occ_list, batch_size=32, show_progress_bar=True)
+
+# Compute cosine similarity between occupations and KLDB titles
+print("Computing similarity matrix...")
 cos_sim_matrix = util.cos_sim(occ_embeddings, kldb_embeddings)
 cos_sim_matrix = cos_sim_matrix.cpu().numpy()  # Convert to numpy array
 
-# Get the best match for each preprocessed occupation
+# Get the best match for each occupation
 best_indices = np.argmax(cos_sim_matrix, axis=1)
 best_similarities = np.max(cos_sim_matrix, axis=1)
 
-# Add best-match info to the preprocessed occupations DataFrame
-preproc_occ_unique["matched_kldb_code"] = kldb["kldb_code5"].iloc[best_indices].values
-preproc_occ_unique["matched_kldb_title"] = kldb["kldb_title"].iloc[best_indices].values
-preproc_occ_unique["similarity_score"] = best_similarities
-
-# Build a dictionary mapping each normalized preprocessed occupation to its match info
-mapping = preproc_occ_unique.set_index("occupation_clean")[
-    ["matched_kldb_code", "matched_kldb_title", "similarity_score"]
-].to_dict(orient="index")
-
-# --- 4. Define a Function to Get the Top Match Using Embedding Distance ---
-
-SIMILARITY_THRESHOLD = 0.7  # Adjust this threshold as needed
-cache = {}
-
-
-def get_top_match(occ, threshold=SIMILARITY_THRESHOLD):
-    occ_norm = str(occ).lower().strip()
-    # If already computed, return from cache
-    if occ_norm in cache:
-        return cache[occ_norm]
-    # If the occupation is in our precomputed mapping, use it
-    if occ_norm in mapping:
-        res = mapping[occ_norm]
-        if res["similarity_score"] < threshold:
-            res = {
-                "matched_kldb_code": np.nan,
-                "matched_kldb_title": np.nan,
-                "similarity_score": res["similarity_score"],
-            }
-        cache[occ_norm] = res
-        return res
-    # Fallback: compute embedding on the fly (should not occur if all occupations are covered)
-    occ_emb = model.encode([occ_norm], show_progress_bar=False)
-    cos_sim = util.cos_sim(occ_emb, kldb_embeddings)
-    cos_sim_np = cos_sim.cpu().numpy()[0]
-    idx = np.argmax(cos_sim_np)
-    max_sim = cos_sim_np[idx]
-    if max_sim < threshold:
-        res = {
-            "matched_kldb_code": np.nan,
-            "matched_kldb_title": np.nan,
-            "similarity_score": max_sim,
-        }
-    else:
-        res = {
-            "matched_kldb_code": kldb["kldb_code5"].iloc[idx],
-            "matched_kldb_title": kldb["kldb_title"].iloc[idx],
-            "similarity_score": max_sim,
-        }
-    cache[occ_norm] = res
-    return res
-
-
-# --- 5. Apply the Matching Function to the Main Dataset ---
-
-# For each row's occupation, retrieve the best match
-cf["matched_kldb_code"] = cf["occupation_norm"].apply(
-    lambda x: get_top_match(x)["matched_kldb_code"]
-)
-cf["matched_kldb_title"] = cf["occupation_norm"].apply(
-    lambda x: get_top_match(x)["matched_kldb_title"]
-)
-cf["similarity_score"] = cf["occupation_norm"].apply(
-    lambda x: get_top_match(x)["similarity_score"]
+# Create a dataframe with the matching results
+matching_results = pd.DataFrame(
+    {
+        "occupation": unique_occupations,
+        "original_occupation": [title_mapping[occ] for occ in unique_occupations],
+        "matched_kldb_code": kldb["kldb_code5"].iloc[best_indices].values,
+        "matched_kldb_title": kldb["kldb_title"].iloc[best_indices].values,
+        "original_matched_kldb_title": kldb["original_kldb_title"]
+        .iloc[best_indices]
+        .values,
+        "similarity_score": best_similarities,
+    }
 )
 
-# Optionally, remove the helper normalized column
-cf.drop(columns=["occupation_norm"], inplace=True)
+# Sort by similarity score (descending) to see best matches first
+matching_results = matching_results.sort_values(by="similarity_score", ascending=False)
 
-# --- 6. Save the Final Matched Data ---
-
-cf.to_csv("input/matched_data.csv", index=False)
-print("Matching complete. Final data saved to 'input/matched_data.csv'")
+# --- 4. Save the Unique Occupation Matching Results ---
+matching_results.to_csv(
+    "output/unique_occupation_matches.csv", index=False, encoding="utf-8"
+)
+print("Matching complete. Results saved to 'output/unique_occupation_matches.csv'")

@@ -1,29 +1,25 @@
 pacman::p_load(tidyverse, readxl)
 
-cf <- read_csv("input/matched_data.csv", locale = locale(encoding = "utf-8"))
+# Try different encodings to see which one works best
+cf <- read_csv("output/unique_occupation_matches.csv", locale = locale(encoding = "latin1"))
+
+
 
 glimpse(cf)
 
+set.seed(123)
+
 # Display results to check the merged data
+cat("Sample of matched occupations:\n")
 cf %>%
     select(
-        occ_1,
-        matched_kldb_title
+        occupation,
+        original_occupation,
+        matched_kldb_title,
+        original_matched_kldb_title,
+        similarity_score
     ) %>%
-    head(30) %>%
-    print(n = 30)
-
-# Get the preprocessed occupation titles
-occ_1_preprocessed <- read_csv("output/preprocessed_occupations_for_embedding.csv")
-
-# Check if occ_1_kldb_title is in the preprocessed data
-occ_1_preprocessed %>%
-    filter(occupation_clean == occ_1_kldb_title) %>%
-    print(n = 30)
-
-# Get the preprocessed KLDB titles
-kldb_preprocessed <- read_csv("output/preprocessed_kldb_for_embedding.csv")
-
-kldb_preprocessed %>%
-    filter(str_detect(kldb_title, "rechtsanwalt")) %>%
+    filter(similarity_score < 1) %>%
+    filter(similarity_score > 0.999) %>%
+    sample_n(30) %>%
     print(n = 30)

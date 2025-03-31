@@ -1,0 +1,6 @@
+pandas
+numpy
+sentence-transformers
+openpyxl
+torch
+git+https://github.com/repodiac/german_compound_splitter 

@@ -10,39 +10,40 @@ The primary goal is to standardize diverse occupation descriptions into internat
 
 ### Data Processing Pipeline
 
-1. **Data Preparation**
-   - Raw MP occupation data is loaded and normalized
-   - Text cleaning and standardization of occupation strings
+1. **KLDB Data Preparation** (`src/prep_kldb_berufe_data.R`)
+   - Loads and preprocesses KLDB reference data from Excel, handling German gender notation patterns, text normalization, and domain information extraction.
 
-2. **KLDB Matching**
-   - Embedding-based semantic matching using sentence transformers
-   - Utilizes `xlm-roberta-large` model for generating text embeddings
-   - Computes cosine similarity between occupation descriptions and KLDB titles
+2. **MP Occupation Processing** (`src/prep_mp_occ_data.R`)
+   - Processes raw MP occupation data, handling multiple occupations per MP, expanding abbreviations, and identifying legislator-only occupations.
 
-3. **ISCO Mapping** (subsequent step)
-   - Maps KLDB codes to ISCO international classification system
+3. **KLDB Matching** (`src/embed_match_kldb.py`)
+   - Performs semantic matching using XLM-RoBERTa-large model, with optional compound word splitting and similarity scoring.
+
+4. **Results Validation** (`src/check_results.R`)
+   - Reviews matching results and assesses match quality through similarity score analysis.
 
 ## Technical Implementation
 
-### Cleaning Steps
+The pipeline implements several key features:
 
-- String normalization (lowercase, whitespace trimming)
-- Precomputing of embeddings for efficiency
-- Deduplication of occupation descriptions
-
-### Similarity Calculation
-
-- Sentence embeddings are generated for both MP occupations and KLDB occupation titles
-- Cosine similarity matrix computation between all occupation pairs
-- Best matches identified through maximum similarity scores
-- Configurable similarity threshold (default: 0.7) for match confidence
+- German-specific text processing including gender notation patterns and compound word splitting
+- Advanced text normalization with abbreviation expansion and status indicator removal
+- Semantic matching using XLM-RoBERTa-large model with precomputed embeddings
+- Multi-occupation handling with confidence scoring for matches
 
 ## Usage
 
-The pipeline consists of:
+The pipeline processes the following files:
 
-1. Data preparation scripts
-2. Embedding and matching code
-3. Output processing for analysis
+Input:
+
+- `input/Alphabetisches-Verzeichnis-Berufsbenennungen-Stand01012019.xlsx`: KLDB reference data
+- `input/input_data.rds`: Raw MP occupation data
+- `input/german/german_utf8.dic`: German dictionary for compound splitting (optional)
+
+Output:
+
+- `output/preprocessed_kldb_for_embedding.csv`: Processed KLDB data
+- `output/unique_occupation_matches.csv`: Matching results with similarity scores
 
 All matches are stored with confidence scores for quality assessment.
