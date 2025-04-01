@@ -9,9 +9,9 @@ df <- read_csv("output/unique_occupation_matches.csv", locale = locale(encoding 
 glimpse(df)
 
 # Set threshold
-threshold <- 0.99985
+threshold <- 0.9999
 
-set.seed(1)
+set.seed(123)
 # Display results to check the merged data
 cat("Sample of matched occupations:\n")
 df_sample <- df %>%
@@ -46,27 +46,25 @@ cf <- read_csv("output/prepped_data.csv",
 
 # Create long dataset
 # First check if full_name, party, elec_year is a unique identifier
+# they are not. we create a new identifier
 
-cf %>%
-    count(full_name, party, elec_year) %>%
-    pull(n) %>%
-    table()
+cf <- cf %>%
+    group_by(full_name, party, elec_year) %>%
+    mutate(cand_occurence = row_number()) %>%
+    ungroup() %>%
+    mutate(cand_id = paste0(full_name, "_", party, "_", elec_year, "_", cand_occurence))
 
-# It is
+# This is an artificial candidate ID to deal w/ the few duplicates in the data
 
 # Create long dataset
 cf_long <- cf %>%
-    dplyr::select(full_name, party, elec_year, occ_1, occ_2, occ_3, occ_4) %>%
+    dplyr::select(full_name, party, elec_year, cand_id, occ_1, occ_2, occ_3, occ_4) %>%
     pivot_longer(cols = starts_with("occ_"), names_to = "occupation_number", values_to = "occupation") %>%
     filter(!is.na(occupation))
 
 # Merge with matches
 cf_long <- cf_long %>%
     left_join_check_obs(df_filtered, by = c("occupation" = "original_occupation"))
-
-glimpse(cf_long)
-
-mean(!is.na(cf_long$matched_kldb_code))
 
 # How many unique candidates have *any* match?
 n_cand_with_match <- cf_long %>%
@@ -144,3 +142,32 @@ cat("Share of KLDB codes that are in isco08_expanded:", kldb_in_isco08, "\n")
 # Join the expanded ISCO codes to cf_long
 cf_long_with_isco <- cf_long %>%
     left_join_check_obs(isco08_expanded, by = c("matched_kldb_code" = "kldb_code"))
+
+# C
+
+# Add some additional candidate info to this -----------------------------------
+
+glimpse(cf)
+glimpse(cf_long_with_isco)
+
+# Merge using cand_id
+
+cf_long_with_isco <- cf_long_with_isco %>%
+    left_join_check_obs(cf %>% dplyr::select(list_state, list_rank, elec_district, direct_cand, list_cand, is_legislator, is_only_legislator, cand_id), by = c("cand_id" = "cand_id"))
+
+glimpse(cf_long_with_isco)
+
+# Add flag for duplicated candidate
+
+cf_long_with_isco <- cf_long_with_isco %>%
+    group_by(cand_id) %>%
+    mutate(is_duplicated_cand = if_else(any(str_detect(cand_id, "_2$")), TRUE, FALSE)) %>%
+    ungroup()
+
+sum(cf_long_with_isco$is_duplicated_cand)
+
+# Save ------------------------------------------------------------------------
+
+write_csv(cf_long_with_isco, "output/candidates_with_occupations.csv")
+
+colnames(cf_long_with_isco)

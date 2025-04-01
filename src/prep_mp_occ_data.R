@@ -1,11 +1,19 @@
 pacman::p_load(tidyverse, haschaR, readxl, stringi)
 
 # Get the data and assign an ID immediately
-cf <- read_rds("input/input_data.rds") %>%
-    dplyr::select(1:14) %>%
+cf <- read_rds("input/candidates_all_80_21.rds") %>%
+    dplyr::select(1:15) %>%
     mutate(id = row_number()) %>%
     mutate(occupation = str_squish(occupation)) %>%
     mutate(occupation = stringi::stri_trans_tolower(occupation))
+
+# Replace ae with ä, oe with ö, and ue with ü only if a/o/u are not preceded by another vowel.
+cf <- cf %>%
+    mutate(occupation = str_replace_all(occupation, "(?<![aeiou])ae", "ä")) %>%
+    mutate(occupation = str_replace_all(occupation, "(?<![aeiou])oe", "ö")) %>%
+    mutate(occupation = str_replace_all(occupation, "(?<![aeiou])ue", "ü"))
+
+glimpse(cf)
 
 # Steps:
 # 1. Separate multiple occupations (divided e.g., by commas or "und").
@@ -173,7 +181,6 @@ legislator_patterns <- c(
     "generalsekretärin",
 
     # Other political positions
-    "diplomat",
     "senatorin",
     "senator",
     "landrat",
@@ -315,5 +322,6 @@ if (any(validation_check$has_legislator_term, na.rm = TRUE)) {
 # Save the processed data
 write_rds(cf, "output/prepped_data.rds")
 
-# Also save as CSV with UTF-8 encoding to preserve umlauts
+glimpse(cf)
+# Also save as CSV with UTF-8 encoding to preserve special characters
 write_csv(cf, "output/prepped_data.csv")
