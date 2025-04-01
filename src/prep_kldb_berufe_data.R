@@ -18,17 +18,10 @@ kldb_reference <- kldb_reference %>%
     kldb_title = tolower(trimws(as.character(kldb_title)))
   )
 
-# Mark rows that have gender notation patterns before we remove punctuation
-kldb_reference <- kldb_reference %>%
-  mutate(
-    has_gender_notation = str_detect(kldb_title, "/in\\b|/-beamtin\\b|/-in\\b|beamte/beamtin")
-  )
-
 # Additional text cleaning and normalization
 kldb_reference <- kldb_reference %>%
   mutate(
     # Clean the text
-    kldb_title = str_replace_all(kldb_title, "[[:punct:]]", " "),
     kldb_title = str_replace_all(kldb_title, "[0-9]", " "),
     kldb_title = str_squish(kldb_title)
   )
@@ -73,152 +66,206 @@ kldb_reference <- kldb_reference %>%
 
 # Handle German gender notation (e.g., "lehrer/in" → add both masculine and feminine forms)
 # Create a function to process each title and code pair
-process_title <- function(title, code, original_title = NULL, has_gender_notation = FALSE) {
-  # If this row has gender notation, use the original title instead of the preprocessed one
-  if (has_gender_notation && !is.null(original_title)) {
-    # Convert to lowercase for consistency
-    original_title <- tolower(original_title)
+process_title <- function(title, code, original_title = NULL) {
+  # --- Debug Print Start ---
+  # Print if original title contains patterns of interest
+  # print_debug <- FALSE
+  # if (!is.null(original_title)) {
+  #   original_lower <- tolower(original_title)
+  #   if (grepl("\\(r\\)", original_lower) || grepl("/in\\b", original_lower) || grepl("\\(.*\\)", original_lower)) {
+  #     print_debug <- TRUE
+  #     cat("\n--- Debug: Processing Original Title: ---\n", original_title, "\n")
+  #   }
+  # }
+  # --- Debug Print End ---
 
-    # Extract domain information
-    domain_info <- ""
-    if (grepl("\\(.*\\)", original_title)) {
-      domain_info <- str_extract(original_title, "\\(.*\\)")
-      domain_info <- str_replace_all(domain_info, "[[:punct:]]", " ")
-      domain_info <- str_squish(domain_info)
-      original_title <- str_replace(original_title, "\\s*\\(.*\\)", "")
-    }
+  # Use the original title if available for gender processing, otherwise use the pre-cleaned title
+  process_text <- if (!is.null(original_title)) tolower(original_title) else title
 
-    # Process based on gender pattern
-    if (grepl("/in\\b", original_title)) {
-      # Pattern: "lehrer/in"
-      base_form <- trimws(gsub("/in\\b", "", original_title))
-      feminine_form <- trimws(gsub("/in\\b", "in", original_title))
-
-      # Clean these forms
-      base_form <- str_replace_all(base_form, "[[:punct:]]", " ")
-      feminine_form <- str_replace_all(feminine_form, "[[:punct:]]", " ")
-      base_form <- str_squish(base_form)
-      feminine_form <- str_squish(feminine_form)
-
-      # Add back domain information if it was present
-      if (domain_info != "") {
-        base_form <- paste(base_form, domain_info)
-        feminine_form <- paste(feminine_form, domain_info)
-      }
-
-      return(list(
-        tibble(
-          kldb_title = c(base_form, feminine_form),
-          kldb_code5 = c(code, code)
-        )
-      ))
-    } else if (grepl("beamter/-beamtin", original_title)) {
-      # Special case for "beamter/-beamtin" pattern
-      base_part <- gsub("(\\w+)beamter/-beamtin.*", "\\1", original_title)
-
-      masculine_form <- trimws(paste0(base_part, "beamter"))
-      feminine_form <- trimws(paste0(base_part, "beamtin"))
-
-      # Clean these forms
-      masculine_form <- str_replace_all(masculine_form, "[[:punct:]]", " ")
-      feminine_form <- str_replace_all(feminine_form, "[[:punct:]]", " ")
-      masculine_form <- str_squish(masculine_form)
-      feminine_form <- str_squish(feminine_form)
-
-      # Add back domain information if it was present
-      if (domain_info != "") {
-        masculine_form <- paste(masculine_form, domain_info)
-        feminine_form <- paste(feminine_form, domain_info)
-      }
-
-      return(list(
-        tibble(
-          kldb_title = c(masculine_form, feminine_form),
-          kldb_code5 = c(code, code)
-        )
-      ))
-    } else if (grepl("ingenieu.*/-in", original_title)) {
-      # Special case for "ingenieur/-in" pattern
-      masculine_form <- "ingenieur"
-      feminine_form <- "ingenieurin"
-
-      # Clean these forms
-      masculine_form <- str_replace_all(masculine_form, "[[:punct:]]", " ")
-      feminine_form <- str_replace_all(feminine_form, "[[:punct:]]", " ")
-      masculine_form <- str_squish(masculine_form)
-      feminine_form <- str_squish(feminine_form)
-
-      # Add back domain information if it was present
-      if (domain_info != "") {
-        masculine_form <- paste(masculine_form, domain_info)
-        feminine_form <- paste(feminine_form, domain_info)
-      }
-
-      return(list(
-        tibble(
-          kldb_title = c(masculine_form, feminine_form),
-          kldb_code5 = c(code, code)
-        )
-      ))
-    } else if (grepl("beamte/beamtin", original_title)) {
-      # Special case for "beamte/beamtin" pattern (without hyphen)
-      masculine_form <- "beamter"
-      feminine_form <- "beamtin"
-
-      # Clean these forms
-      masculine_form <- str_replace_all(masculine_form, "[[:punct:]]", " ")
-      feminine_form <- str_replace_all(feminine_form, "[[:punct:]]", " ")
-      masculine_form <- str_squish(masculine_form)
-      feminine_form <- str_squish(feminine_form)
-
-      # Add back domain information if it was present
-      if (domain_info != "") {
-        masculine_form <- paste(masculine_form, domain_info)
-        feminine_form <- paste(feminine_form, domain_info)
-      }
-
-      return(list(
-        tibble(
-          kldb_title = c(masculine_form, feminine_form),
-          kldb_code5 = c(code, code)
-        )
-      ))
-    } else if (grepl("er/-in", original_title)) {
-      # Handle patterns like "verkäufer/-in"
-      base_part <- gsub("(\\w+)er/-in.*", "\\1", original_title)
-
-      masculine_form <- trimws(paste0(base_part, "er"))
-      feminine_form <- trimws(paste0(base_part, "in"))
-
-      # Clean these forms
-      masculine_form <- str_replace_all(masculine_form, "[[:punct:]]", " ")
-      feminine_form <- str_replace_all(feminine_form, "[[:punct:]]", " ")
-      masculine_form <- str_squish(masculine_form)
-      feminine_form <- str_squish(feminine_form)
-
-      # Add back domain information if it was present
-      if (domain_info != "") {
-        masculine_form <- paste(masculine_form, domain_info)
-        feminine_form <- paste(feminine_form, domain_info)
-      }
-
-      return(list(
-        tibble(
-          kldb_title = c(masculine_form, feminine_form),
-          kldb_code5 = c(code, code)
-        )
-      ))
-    }
+  # Extract domain information first
+  domain_info <- ""
+  if (grepl("\\(.*\\)", process_text)) {
+    domain_match <- str_extract(process_text, "\\(.*\\)")
+    # Clean domain info extracted (remove brackets and squish)
+    domain_info <- str_replace_all(domain_match, "[\\(\\)]", " ")
+    domain_info <- str_replace_all(domain_info, "[[:punct:]]", " ") # Clean other punct within domain
+    domain_info <- str_squish(domain_info)
+    # Remove domain part from main title for further processing
+    process_text <- str_replace(process_text, fixed(domain_match), "")
+    process_text <- str_squish(process_text)
   }
 
-  # For rows without gender notation, or if we couldn't process the gender notation,
-  # just return the preprocessed title as is
-  return(list(
-    tibble(
-      kldb_title = title,
-      kldb_code5 = code
-    )
-  ))
+  # Default flag, set to TRUE if a gender pattern is matched and split
+  gender_split_done <- FALSE
+
+  # Process based on gender pattern - check most complex first
+  # --- NEW COMPLEX PATTERN START ---
+  if (grepl("/r\\b", process_text) && grepl("/in\\b", process_text)) { # Check for presence of both patterns
+    # Assume complex case like "Zweite/r Nautische/r Schiffsoffizier/in"
+    # Masculine: Replace ALL "/r" with "er", remove "/in"
+    masculine_form <- str_replace_all(process_text, "/r\\b", "er")
+    masculine_form <- str_replace_all(masculine_form, "/in\\b", "")
+    # Feminine: Replace ALL "/r" with "e", replace "/in" with "in"
+    feminine_form <- str_replace_all(process_text, "/r\\b", "e")
+    feminine_form <- str_replace_all(feminine_form, "/in\\b", "in")
+
+    # Clean forms
+    masculine_form <- str_replace_all(masculine_form, "[[:punct:]]", " ")
+    feminine_form <- str_replace_all(feminine_form, "[[:punct:]]", " ")
+    masculine_form <- str_squish(masculine_form)
+    feminine_form <- str_squish(feminine_form)
+    base_form <- masculine_form # Use masculine as base for return structure
+    gender_split_done <- TRUE
+  }
+  # --- NEW COMPLEX PATTERN END ---
+  # Handle parenthesized gender notations
+  else if (grepl("\\w+\\(er/in\\)", process_text)) {
+    # Pattern: "Word(er/in)" -> Word+er, Word+in
+    base_part <- gsub("(\\w+)\\(er/in\\)", "\\1", process_text)
+    masculine_form <- trimws(paste0(base_part, "er"))
+    feminine_form <- trimws(paste0(base_part, "in"))
+
+    # Clean these forms
+    masculine_form <- str_replace_all(masculine_form, "[[:punct:]]", " ")
+    feminine_form <- str_replace_all(feminine_form, "[[:punct:]]", " ")
+    masculine_form <- str_squish(masculine_form)
+    feminine_form <- str_squish(feminine_form)
+    base_form <- masculine_form
+    gender_split_done <- TRUE
+  } else if (grepl("\\w+\\(r\\)", process_text)) { # Handles Word(r)
+    # Pattern: "Word(r)" -> Word+r, Word
+    base_part <- gsub("(\\w+)\\(r\\)", "\\1", process_text)
+    masculine_form <- trimws(paste0(base_part, "r"))
+    feminine_form <- trimws(base_part) # Feminine is the base word
+
+    # Clean these forms
+    masculine_form <- str_replace_all(masculine_form, "[[:punct:]]", " ")
+    feminine_form <- str_replace_all(feminine_form, "[[:punct:]]", " ")
+    masculine_form <- str_squish(masculine_form)
+    feminine_form <- str_squish(feminine_form)
+    base_form <- masculine_form
+    gender_split_done <- TRUE
+  }
+  # --- Was NEW PATTERNS END, now continues with other standard patterns ---
+  # Handle other standard slash/hyphen notations
+  else if (grepl("(?<![/-])beamter/-beamtin", process_text, perl = TRUE)) { # Added lookbehind
+    # Special case for "beamter/-beamtin" pattern
+    base_part <- gsub("(\\w+)beamter/-beamtin.*", "\\1", process_text)
+    masculine_form <- trimws(paste0(base_part, "beamter"))
+    feminine_form <- trimws(paste0(base_part, "beamtin"))
+
+    # Clean these forms
+    masculine_form <- str_replace_all(masculine_form, "[[:punct:]]", " ")
+    feminine_form <- str_replace_all(feminine_form, "[[:punct:]]", " ")
+    masculine_form <- str_squish(masculine_form)
+    feminine_form <- str_squish(feminine_form)
+    base_form <- masculine_form
+    gender_split_done <- TRUE
+  } else if (grepl("(?<![/-])ingenieu.*/-in", process_text, perl = TRUE)) { # Added lookbehind
+    # Special case for "ingenieur/-in" pattern
+    masculine_form <- "ingenieur"
+    feminine_form <- "ingenieurin"
+
+    # Clean these forms
+    masculine_form <- str_replace_all(masculine_form, "[[:punct:]]", " ")
+    feminine_form <- str_replace_all(feminine_form, "[[:punct:]]", " ")
+    masculine_form <- str_squish(masculine_form)
+    feminine_form <- str_squish(feminine_form)
+    base_form <- masculine_form
+    gender_split_done <- TRUE
+  } else if (grepl("(?<![/-])beamte/beamtin", process_text, perl = TRUE)) { # Added lookbehind
+    # Special case for "beamte/beamtin" pattern (without hyphen)
+    masculine_form <- "beamter"
+    feminine_form <- "beamtin"
+
+    # Clean these forms
+    masculine_form <- str_replace_all(masculine_form, "[[:punct:]]", " ")
+    feminine_form <- str_replace_all(feminine_form, "[[:punct:]]", " ")
+    masculine_form <- str_squish(masculine_form)
+    feminine_form <- str_squish(feminine_form)
+    base_form <- masculine_form
+    gender_split_done <- TRUE
+  } else if (grepl("\\w+er/-in\\b", process_text)) { # Made word part more explicit
+    # Handle patterns like "verkäufer/-in"
+    base_part <- gsub("(\\w+)er/-in.*", "\\1", process_text)
+    masculine_form <- trimws(paste0(base_part, "er"))
+    feminine_form <- trimws(paste0(base_part, "in"))
+
+    # Clean these forms
+    masculine_form <- str_replace_all(masculine_form, "[[:punct:]]", " ")
+    feminine_form <- str_replace_all(feminine_form, "[[:punct:]]", " ")
+    masculine_form <- str_squish(masculine_form)
+    feminine_form <- str_squish(feminine_form)
+    base_form <- masculine_form
+    gender_split_done <- TRUE
+  } else if (grepl("/in\\b", process_text, perl = TRUE)) { # Final simple /in check (removed invalid lookbehind)
+    # Pattern: "lehrer/in" (will only be reached if complex patterns above didn't match)
+    base_form <- gsub("/in\\b", "", process_text)
+    feminine_form <- gsub("/in\\b", "in", process_text)
+
+    # Clean these forms
+    base_form <- str_replace_all(base_form, "[[:punct:]]", " ")
+    feminine_form <- str_replace_all(feminine_form, "[[:punct:]]", " ")
+    base_form <- str_squish(base_form)
+    feminine_form <- str_squish(feminine_form)
+    # base_form already assigned by gsub
+    gender_split_done <- TRUE
+  } else {
+    # Fallback: No specific gender pattern matched.
+    # Use the already cleaned process_text (which had domain info removed).
+    cleaned_title <- str_replace_all(process_text, "[[:punct:]]", " ") # Final punctuation clean
+    cleaned_title <- str_squish(cleaned_title)
+
+    # --- Debug Print Start ---
+    # if (print_debug) {
+    #   cat("--- Debug: Resulting Titles (Fallback): ---\n")
+    #   cat("  -> ", cleaned_title, "\n")
+    #   cat("------------------------------------\n")
+    # }
+    # --- Debug Print End ---
+
+    # Add back domain info if it was present
+    if (domain_info != "") {
+      cleaned_title <- paste(cleaned_title, domain_info)
+      cleaned_title <- str_squish(cleaned_title)
+    }
+
+    return(list(
+      tibble(
+        kldb_title = cleaned_title,
+        kldb_code5 = code
+      )
+    ))
+  }
+
+  # --- Check if gender split was done ---
+  if (gender_split_done) {
+    # --- Common return block for split gender forms ---
+    # Add back domain information if it was present
+    if (domain_info != "") {
+      base_form <- paste(base_form, domain_info)
+      feminine_form <- paste(feminine_form, domain_info)
+      # Squish again after paste
+      base_form <- str_squish(base_form)
+      feminine_form <- str_squish(feminine_form)
+    }
+
+    # --- Debug Print Start ---
+    # if (print_debug) {
+    #   cat("--- Debug: Resulting Titles (Split): ---\n")
+    #   cat("  -> Masculine/Base: ", base_form, "\n")
+    #   cat("  -> Feminine:       ", feminine_form, "\n")
+    #   cat("------------------------------------\n")
+    # }
+    # --- Debug Print End ---
+
+    return(list(
+      tibble(
+        kldb_title = c(base_form, feminine_form),
+        kldb_code5 = c(code, code)
+      )
+    ))
+  }
 }
 
 # Use mapply with progress bar
@@ -226,17 +273,19 @@ results <- pmap_dfr(
   list(
     kldb_reference$kldb_title,
     kldb_reference$kldb_code5,
-    kldb_reference$original_title,
-    kldb_reference$has_gender_notation
+    kldb_reference$original_title
   ),
-  function(title, code, orig, has_gender) {
-    process_title(title, code, orig, has_gender)
+  function(title, code, orig) {
+    process_title(title, code, orig)
   },
   .progress = TRUE
 )
 
 # Combine all results
 expanded_titles <- results
+# Apply final squish to remove any leading/trailing/double spaces from processing
+expanded_titles <- expanded_titles %>%
+  mutate(kldb_title = str_squish(kldb_title))
 kldb_reference <- expanded_titles
 
 # Display 100 random rows from the results

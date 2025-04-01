@@ -8,7 +8,13 @@ from german_compound_splitter import comp_split
 # --- 1. Load Main Data ---
 
 # Load the main dataset (prepped_data.csv)
-cf = pd.read_csv("output/prepped_data.csv", encoding="utf-8")
+cf = pd.read_csv(
+    "output/prepped_data.csv",
+    encoding="utf-8",
+    quoting=1,  # csv.QUOTE_ALL
+    escapechar="\\",
+    na_values=[""],
+)
 print(f"Loaded main dataset with {len(cf)} records.")
 
 # Check for umlauts in main dataset

@@ -9,9 +9,9 @@ df <- read_csv("output/unique_occupation_matches.csv", locale = locale(encoding 
 glimpse(df)
 
 # Set threshold
-threshold <- 0.9999
+threshold <- 0.99995
 
-set.seed(123)
+set.seed(1)
 # Display results to check the merged data
 cat("Sample of matched occupations:\n")
 df_sample <- df %>%
@@ -23,10 +23,9 @@ df_sample <- df %>%
     filter(!original_occupation == original_matched_kldb_title) %>%
     filter(similarity_score < 100 * 1) %>%
     filter(similarity_score > 100 * threshold) %>%
-    sample_n(20) %>%
-    print(n = 20)
+    sample_n(15) %>%
+    print(n = 15)
 
-df_sample
 
 # Save this as a csv
 write_csv(df_sample, "output/matches_sample.csv")
@@ -71,11 +70,13 @@ n_cand_with_match <- cf_long %>%
     filter(!is.na(matched_kldb_code)) %>%
     distinct(full_name, party) %>%
     nrow()
+n_cand_with_match
 
 # How many unique candidates in total?
 n_cand_total <- cf %>%
     distinct(full_name, party) %>%
     nrow()
+n_cand_total
 
 # Share of candidates with matches
 n_cand_with_match / n_cand_total

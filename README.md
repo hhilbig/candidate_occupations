@@ -4,7 +4,7 @@ Candidates for the *Bundestag* in Germany self-report occupations in a non-stand
 
 **Candidate population:** I use all candidates (list and district) for the Bundestag (federal parliament) in all elections between 1980 and 2021. Elections prior to 1990 are limited to West Germany. I only use candidates for the SPD, CDU/CSU, FDP, Green, Left (previously PDS) and AfD parties. This data comes directly from the federal returning officer.
 
-**Share candidates with matches:** I use an ad-hoc (based on trial and error) lower bound for match quality to ensure that matches are accurate (see file `src/check_and_save_results.R`). Out of a total of 18,354 unique candidate-party combinations, I obtain good matches for 9,250, about 50%.
+**Share candidates with matches:** I use an ad-hoc (based on trial and error) lower bound for match quality to ensure that matches are accurate (see file `src/check_and_save_results.R`). Out of a total of 18,352 unique candidate-party combinations, I obtain good matches for 9,105, about 49.61%.
 
 **Output data:** The output data `candidates_with_occupations.csv` is in long format. Rows are combinations of candidate name, party, election year and numbered candidate occupation.
 
@@ -51,26 +51,21 @@ Below is a sample of non-exact matches, showing the candidate's reported occupat
 
 | Original occupation                    | Matched KldB title                             |
 | -------------------------------------- | ---------------------------------------------- |
-| kinderarzt                             | kinderarzt ärztin                             |
-| fachkraft qualitätsmanagement         | fachkraft sportmanagement                      |
-| versicherungsfachwirt                  | versicherungs und finanzfachwirt               |
-| steuerrat                              | steuerassistent                                |
-| informatik betriebswirt                | informatik betriebswirt vwa                    |
-| verkaufleiterin                        | verkaufsleiterin                               |
-| internationale beziehungen             | internationale r management assistent          |
-| wirtschaftsjuristin                    | wirtschafts und arbeitsjuristin                |
-| steuerfachangestellter                 | steuerfachangestellte r                        |
-| einrichtungsleiter                     | einrichtungsleiter altenheim                   |
-| augenoptikerin                         | augenoptikerin fs                              |
-| hauswirtschaftsleiterin                | hauswirtschaftliche r betriebsleiterin         |
-| kraftwerkstechnik                      | kraftwerker maschinentechnik                   |
-| luftverkehrskaufmann                   | luftverkehrskaufmann frau                      |
-| kraftfahrzeugmeister                   | kraftfahrzeug industriemeister                 |
-| dokumentarin                           | dokumentar                                     |
-| fachangestellte markt                  | fachangestellte r archiv                       |
-| religionslehrer                        | religionslehrer katholische religionslehre uni |
-| medizinische dokumentationsassistentin | medizinische r dokumentationsassistentin       |
-| technischer schiffsoffizier            | technische r schiffsoffizier                   |
+| leiter digitales marketing             | leiter controlling                             |
+| maschinenführer                        | maschinen und anlagenführer                    |
+| referent                               | referent bildung                               |
+| kaufmann                               | kaufmann frau außenhandel                      |
+| rechtsanwaltsfachangestellte          | rechtsanwalts und notarfachangestellte r       |
+| arzt laboratoriumsmedizin             | arzt ärztin laboratoriumsmedizin              |
+| personalrat                            | personalrat rätin                              |
+| sozialpädagogischer berater           | sozialpädagogischeer assistent                |
+| fachbereichsleiterin                   | fachbereichsleiterin gesamtschulen            |
+| flugkapitän i r                        | flugkapitän                                    |
+| katholischer gemeindereferent          | katholischeer gemeindereferent                |
+| facharzt kinderheilkunde              | facharzt ärztin augenheilkunde                |
+| akademischer oberrat                   | akademische r oberrat rätin hochschule        |
+| kulturgeografin master of arts         | kulturgeografin                                |
+| agrar ingenieur                        | agrartechnischeer assistent                    |
 
 Some of these matches are likely not fully correct, but even incorrect matches should point towards "similar" occupations in the KldB list.
 
@@ -86,7 +81,7 @@ Some of these matches are likely not fully correct, but even incorrect matches s
 
    - Splits multiple occupations into separate columns (dynamically determined number per candidate)
    - Expands abbreviations (e.g., "Dipl." → "Diplom", "MdB" → "Mitglied des Bundestages")
-   - Normalizes text by fixing umlauts, removing punctuation, removing status indicators (e.g., "a.d.", "i.r."), removing stopwords, and standardizing variants
+   - Normalizes text by fixing common umlaut representations (e.g., `ae` → `ä`), removing status indicators (e.g., "a.d.", "i.r."), removing stopwords, and standardizing variants. Parenthetical content is preserved. Most punctuation is removed *after* splitting occupations by comma.
    - Tags over 30 different legislator-specific roles and elected positions
    - Saves preprocessed MP occupation data to a CSV file for the next step
 3. **Semantic Matching** ([`src/embed_match_kldb.py`](src/embed_match_kldb.py))
@@ -109,7 +104,7 @@ Some of these matches are likely not fully correct, but even incorrect matches s
 
 - [`input/Alphabetisches-Verzeichnis-Berufsbenennungen-Stand01012019.xlsx`](input/Alphabetisches-Verzeichnis-Berufsbenennungen-Stand01012019.xlsx): KldB reference list
 - [`input/Umsteigeschluessel-KLDB2020-ISCO08.xlsx`](input/Umsteigeschluessel-KLDB2020-ISCO08.xlsx): KldB to ISCO-08 mapping
-- [`input/candidates_all_80_17.rds`](input/candidates_all_80_21.rds): MP occupation data (Note: This is the source file used by the scripts)
+- [`input/candidates_all_80_21.rds`](input/candidates_all_80_21.rds): MP occupation data (Note: This is the source file used by the scripts)
 - [`input/german/german_utf8.dic`](input/german/german_utf8.dic): German dictionary (optional)
 
 **Outputs:**

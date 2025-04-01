@@ -1,21 +1,16 @@
 original_occupation,original_matched_kldb_title,similarity_score
-kinderarzt,kinderarzt ärztin,99.99995
-fachkraft qualitätsmanagement,fachkraft sportmanagement,99.999994
-versicherungsfachwirt,versicherungs und finanzfachwirt,99.999946
-steuerrat,steuerassistent,99.99708000000001
-informatik betriebswirt,informatik betriebswirt vwa,99.99997
-verkaufleiterin,verkaufsleiterin,99.99986
-internationale beziehungen,internationale r management assistent,99.99993
-wirtschaftsjuristin,wirtschafts und arbeitsjuristin,99.99992
-steuerfachangestellter,steuerfachangestellte r,99.990404
-einrichtungsleiter,einrichtungsleiter altenheim,99.99996
-augenoptikerin,augenoptikerin fs,99.999976
-hauswirtschaftsleiterin,hauswirtschaftliche r betriebsleiterin,99.999976
-kraftwerkstechnik,kraftwerker maschinentechnik,99.99991700000001
-luftverkehrskaufmann,luftverkehrskaufmann frau,99.999946
-kraftfahrzeugmeister,kraftfahrzeug industriemeister,99.99983
-dokumentarin,dokumentar,99.99996399999999
-fachangestellte markt,fachangestellte r archiv,99.99999000000001
-religionslehrer,religionslehrer katholische religionslehre uni,99.999994
-medizinische dokumentationsassistentin,medizinische r dokumentationsassistentin,99.99983999999999
-technischer schiffsoffizier,technische r schiffsoffizier,99.99991700000001
+leiter digitales marketing,leiter controlling,99.99996
+maschinenführer,maschinen und anlagenführer,99.99997
+referent,referent bildung,99.999887
+kaufmann,kaufmann frau außenhandel,99.99991
+rechtsanwaltsfachangestellte,rechtsanwalts und notarfachangestellte r,99.99995
+arzt laboratoriumsmedizin,arzt ärztin laboratoriumsmedizin,99.99987
+personalrat,personalrat rätin,99.999976
+sozialpädagogischer berater,sozialpädagogischeer assistent,99.99991
+fachbereichsleiterin,fachbereichsleiterin gesamtschulen,99.99991700000001
+flugkapitän i r,flugkapitän,99.999976
+katholischer gemeindereferent,katholischeer gemeindereferent,99.999946
+facharzt kinderheilkunde,facharzt ärztin augenheilkunde,99.99999000000001
+akademischer oberrat,akademische r oberrat rätin hochschule,99.999976
+kulturgeografin master of arts,kulturgeografin,99.99994
+agrar ingenieur,agrartechnischeer assistent,99.99996

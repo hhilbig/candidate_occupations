@@ -68,7 +68,7 @@ occupations_split <- cf %>%
     mutate(occupation = str_replace_all(occupation, "buergermeister", "bürgermeister")) %>%
     mutate(occupation = str_replace_all(occupation, "praesident", "präsident")) %>%
     # Remove parenthetical qualifications that don't add occupation information
-    mutate(occupation = str_replace_all(occupation, "\\([^)]*\\)", "")) %>%
+    # mutate(occupation = str_replace_all(occupation, "\\([^)]*\\)", "")) %>%
     # Standardize inconsistent occupational titles
     mutate(occupation = str_replace_all(occupation, "\\bargbeordnete[r]?\\b", "abgeordnete")) %>%
     # Consistent formatting for "selbständig" variations
@@ -319,9 +319,6 @@ if (any(validation_check$has_legislator_term, na.rm = TRUE)) {
     print("Validation passed: No legislator terms found in cleaned occupation fields.")
 }
 
-# Save the processed data
-write_rds(cf, "output/prepped_data.rds")
-
 glimpse(cf)
-# Also save as CSV with UTF-8 encoding to preserve special characters
-write_csv(cf, "output/prepped_data.csv")
+# Also save as CSV with UTF-8 encoding to preserve special characters and proper quoting
+write_csv(cf, "output/prepped_data.csv", quote = "all", na = "")
